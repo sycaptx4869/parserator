@@ -40,6 +40,19 @@ def dispatch():
                            type=python_module)
     sub_label.set_defaults(func=label)
 
+    # Arguments for batch label command
+    sub_batch_label = parser_subparsers.add_parser('batch_label')
+    sub_batch_label.add_argument(dest='infile',
+                           help='input csv filepath for the label task',
+                           type=file_type)
+    sub_batch_label.add_argument(dest='outfile',
+                           help='output xml filepath for the label task',
+                           action=XML)
+    sub_batch_label.add_argument(dest='module',
+                           help='parser module name',
+                           type=python_module)
+    sub_batch_label.set_defaults(func=batch_label)
+
     # Arguments for train command
     sub_train = parser_subparsers.add_parser('train')
     sub_train.add_argument(dest='traindata',
@@ -73,6 +86,9 @@ def dispatch():
     
 def label(args) :
     manual_labeling.label(args.module, args.infile, args.outfile, args.xml)
+
+def batch_label(args) :
+    manual_labeling.label(args.module, args.infile, args.outfile, args.xml, batch = True)
 
 def train(args) :
     training_data = args.traindata

@@ -15,7 +15,7 @@ import csv
 from argparse import ArgumentParser
 from collections import OrderedDict
 import io
-
+import subprocess
 if sys.version < '3' :
     from backports import csv
 else :
@@ -73,13 +73,76 @@ def consoleLabel(raw_strings, labels, module):
     print('Done! Yay!')
     return tagged_strings, strings_left_to_tag
 
+def batch_consoleLabel(raw_strings, labels, module): 
+    print('\nStart console labeling!\n')
+    valid_input_tags = OrderedDict([(str(i), label) for i, label in enumerate(labels)])
+    printHelp(valid_input_tags)
+
+    valid_responses = ['y', 'n', 'h']
+
+    raw_strings = list(raw_strings)
+    total_strings = len(raw_strings)
+    initial_tagged_strings = []
+    tagged_strings = []
+
+    for i, raw_sequence in enumerate(raw_strings, 1):
+        preds = module.parse(raw_sequence)
+        initial_tagged_strings.append(tuple(preds))
+
+
+
+    with open('labeled_training_data.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(["RawAddress"]+labels)
+        i = 0
+        for address in initial_tagged_strings:
+            address_list = [raw_strings[i]]
+            i += 1
+            for label in labels:
+                label_string = ""
+                for couple in address:
+                    if couple[1] == label and label_string == "":
+                        label_string += couple[0]
+                    elif couple[1] == label:
+                        label_string += " "
+                        label_string += couple[0]
+                    else:
+                        continue
+                address_list.append(label_string)
+            writer.writerow(address_list)
+
+    
+    p = subprocess.Popen('open -W labeled_training_data.csv', shell=True)
+    p.wait()
+
+    with open('labeled_training_data.csv', newline='') as csvfile:
+        tagged_strings = []
+        reader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        tagged_string = []
+        header = next(reader)[1:]
+        for row in reader:
+            row = row[1:]
+            processed_row = []
+            for i in range(len(row)):
+                addr = row[i]
+                tag = header[i]
+                if addr:
+                    for a in addr.split(' '):
+                        pair = (a,tag)
+                        processed_row.append(pair)
+            if processed_row:
+                processed_row = tuple(processed_row)
+                tagged_strings.append(processed_row)
+
+    return tagged_strings, []
+
 
 def print_table(table):
     col_width = [max(len(x) for x in col) for col in zip(*table)]
     for line in table:
         print(u"| %s |" % " | ".join(u"{:{}}".format(x, col_width[i])
                                      for i, x in enumerate(line)))
-        
+
 
 def manualTagging(preds, valid_input_tags):
     tagged_sequence = []
@@ -179,7 +242,7 @@ def printHelp(valid_input_tags):
     print("type 'oops' if you make a labeling error\n")
     print('*'*50, '\n')
 
-def label(module, infile, outfile, xml):
+def label(module, infile, outfile, xml, batch = False):
 
     training_data = data_prep_utils.TrainingData(xml, module)
 
@@ -189,7 +252,10 @@ def label(module, infile, outfile, xml):
     labels = module.LABELS
 
     if module.TAGGER:
-        labeled_list, raw_strings_left = consoleLabel(strings, labels, module) 
+        if not batch:
+            labeled_list, raw_strings_left = consoleLabel(strings, labels, module)
+        else:
+            labeled_list, raw_strings_left = batch_consoleLabel(strings, labels, module)
     else:
         labeled_list, raw_strings_left = naiveConsoleLabel(strings, labels, module)
 
@@ -204,4 +270,8 @@ def label(module, infile, outfile, xml):
     remainder_file = os.path.dirname(infile.name) + file_slug
 
     data_prep_utils.list2file(raw_strings_left, remainder_file)
+
+
+
+
 
