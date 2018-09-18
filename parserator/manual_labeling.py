@@ -21,7 +21,7 @@ if sys.version < '3' :
 else :
     import csv
 
-def consoleLabel(raw_strings, labels, module): 
+def consoleLabel(raw_strings, labels, module):
     print('\nStart console labeling!\n')
     valid_input_tags = OrderedDict([(str(i), label) for i, label in enumerate(labels)])
     printHelp(valid_input_tags)
@@ -40,10 +40,10 @@ def consoleLabel(raw_strings, labels, module):
             print('\n(%s of %s)' % (i, total_strings))
             print('-'*50)
             print('STRING: %s' %raw_sequence)
-            
+
             preds = module.parse(raw_sequence)
 
-            user_input = None 
+            user_input = None
             while user_input not in valid_responses :
 
                 friendly_repr = [(token[0].strip(), token[1]) for token in preds]
@@ -57,7 +57,7 @@ def consoleLabel(raw_strings, labels, module):
                     strings_left_to_tag.remove(raw_sequence)
 
                 elif user_input =='n':
-                    corrected_string = manualTagging(preds, 
+                    corrected_string = manualTagging(preds,
                                                 valid_input_tags)
                     tagged_strings.add(tuple(corrected_string))
                     strings_left_to_tag.remove(raw_sequence)
@@ -73,8 +73,19 @@ def consoleLabel(raw_strings, labels, module):
     print('Done! Yay!')
     return tagged_strings, strings_left_to_tag
 
-def batch_consoleLabel(raw_strings, labels, module): 
-    print('\nStart console labeling!\n')
+def check_dup(raw_sequence):
+    seen = set()
+    for item in raw_sequence:
+        if item[0] not in seen:
+            seen.add(item[0])
+        else:
+            return True
+    return False
+
+
+
+def batch_consoleLabel(raw_strings, labels, module):
+    print('\nStart batch console labeling!\n')
     valid_input_tags = OrderedDict([(str(i), label) for i, label in enumerate(labels)])
     printHelp(valid_input_tags)
 
@@ -84,15 +95,19 @@ def batch_consoleLabel(raw_strings, labels, module):
     total_strings = len(raw_strings)
     initial_tagged_strings = []
     tagged_strings = []
+    strings_left_to_tag = []
 
-    for i, raw_sequence in enumerate(raw_strings, 1):
+    for raw_sequence in raw_strings:
         preds = module.parse(raw_sequence)
-        initial_tagged_strings.append(tuple(preds))
+        if not check_dup(preds):
+            initial_tagged_strings.append(tuple(preds))
+        else:
+            strings_left_to_tag.append(raw_sequence)
 
 
 
     with open('labeled_training_data.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        writer = csv.writer(csvfile)
         writer.writerow(["RawAddress"]+labels)
         i = 0
         for address in initial_tagged_strings:
@@ -111,15 +126,18 @@ def batch_consoleLabel(raw_strings, labels, module):
                 address_list.append(label_string)
             writer.writerow(address_list)
 
-    
-    p = subprocess.Popen('open -W labeled_training_data.csv', shell=True)
-    p.wait()
+
+    # p = subprocess.Popen('open -W labeled_training_data.csv', shell=True)
+    # p.wait()
+
+    input("Press any key to continue...")
 
     with open('labeled_training_data.csv', newline='') as csvfile:
         tagged_strings = []
-        reader = csv.reader(csvfile, delimiter=',', quotechar='|')
+        reader = csv.reader(csvfile)
         tagged_string = []
         header = next(reader)[1:]
+        line = 0
         for row in reader:
             row = row[1:]
             processed_row = []
@@ -130,11 +148,16 @@ def batch_consoleLabel(raw_strings, labels, module):
                     for a in addr.split(' '):
                         pair = (a,tag)
                         processed_row.append(pair)
+
+            original_row = [oa for oa, t in initial_tagged_strings[line]]
+            processed_row.sort(key = lambda at: original_row.index(at[0]))
+
             if processed_row:
                 processed_row = tuple(processed_row)
                 tagged_strings.append(processed_row)
+            line += 1
 
-    return tagged_strings, []
+    return tagged_strings, strings_left_to_tag
 
 
 def print_table(table):
@@ -169,7 +192,7 @@ def manualTagging(preds, valid_input_tags):
     return tagged_sequence
 
 
-def naiveConsoleLabel(raw_strings, labels, module): 
+def naiveConsoleLabel(raw_strings, labels, module):
 
     print('\nStart console labeling!\n')
     valid_input_tags = OrderedDict([(str(i), label) for i, label in enumerate(labels)])
@@ -188,10 +211,10 @@ def naiveConsoleLabel(raw_strings, labels, module):
             print('\n(%s of %s)' % (i, total_strings))
             print('-'*50)
             print('STRING: %s' %raw_sequence)
-            
+
             tokens = module.tokenize(raw_sequence)
 
-            user_input = None 
+            user_input = None
             while user_input not in valid_responses :
 
                 sys.stderr.write('(t)ag / (s)kip / (f)inish tagging / (h)elp\n')
@@ -220,7 +243,7 @@ def naiveManualTag(raw_sequence, valid_input_tags):
             user_input_tag = sys.stdin.readline().strip()
             if user_input_tag in valid_input_tags:
                 valid_tag = True
-            elif user_input_tag in ('h', 'help', '?') : 
+            elif user_input_tag in ('h', 'help', '?') :
                 printHelp(valid_input_tags)
             elif user_input_tag == 'oops':
                 print('No worries! Let\'s start over in labeling this string')
@@ -228,7 +251,7 @@ def naiveManualTag(raw_sequence, valid_input_tags):
                 return sequence_labels_redo
             else:
                 print("That is not a valid tag. Type 'help' to see the valid inputs")
-            
+
         token_label = valid_input_tags[user_input_tag]
         sequence_labels.append((token, token_label))
     return sequence_labels
@@ -270,8 +293,3 @@ def label(module, infile, outfile, xml, batch = False):
     remainder_file = os.path.dirname(infile.name) + file_slug
 
     data_prep_utils.list2file(raw_strings_left, remainder_file)
-
-
-
-
-
